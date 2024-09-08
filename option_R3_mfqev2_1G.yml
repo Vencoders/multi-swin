@@ -1,0 +1,161 @@
+dataset:
+  train:  # LMDB
+    type: MFQEv2_BlindDataset
+    
+    # for lmdb
+    root: /data/wsy/MFQEv2_dataset/
+    gt_folder: train_108/raw/
+    lq_folder: train_108/VTM20.0_LDP/QP37/
+    
+    # for dataset
+    gt_path: mfqev2_R3_QP37_train_gt.lmdb
+    lq_path: [ mfqev2_R3_QP22_train_lq.lmdb, mfqev2_R3_QP27_train_lq.lmdb, mfqev2_R3_QP32_train_lq.lmdb, mfqev2_R3_QP37_train_lq.lmdb, mfqev2_R3_QP42_train_lq.lmdb ]
+    meta_info_fp: meta_info.txt
+    gt_size: 128  # ground truth patch size: gt_size * gt_size
+    use_flip: True
+    use_rot: True  # rotation per 90 degrees
+    random_reverse: False
+
+    # for datasampler
+    enlarge_ratio: 300  # enlarge dataset by randomly cropping.
+    
+    # for dataloader
+    num_worker_per_gpu: 12  # 12 in total. mainly affect IO speed
+    batch_size_per_gpu: 1  # bs=32, divided by 4 GPU CUDA_VISIBLE_DEVICES=1 python train.py --opt_path option_R3_mfqev2_1G.ymls
+
+  train_cl:
+    type: MFQEv2_CLDataset
+
+    # for lmdb
+    root: /data/wsy/MFQEv2_dataset/
+
+    # for dataset
+    gt_path: mfqev2_R3_QP37_train_gt.lmdb
+    lq_path: mfqev2_R3_QP42_train_lq.lmdb
+    meta_info_fp: meta_info.txt
+    gt_size: 128  # ground truth patch size: gt_size * gt_size
+    use_flip: True
+    use_rot: True  # rotation per 90 degrees
+    random_reverse: False
+
+    qp: QP2,QP7,QP12,QP17,QP22,QP27,QP32,QP37,QP42,QP47
+
+    # for datasampler
+    enlarge_ratio: 600  # enlarge da taset by randomly cropping.
+
+    # for dataloader
+    num_worker_per_gpu: 12  # 12 in total. mainly affect IO speed
+    batch_size_per_gpu: 1  # bs=32, divided by 4 GPUCUDA_VISIBLE_DEVICES=1 python train.py --opt_path option_R3_mfqev2_1G.ymls
+  
+  val:  # Disk IO
+    type: VideoTestMFQEv2Dataset
+    #root: /media/x/Database/MFQEv2/
+    gt_path: test_18/raw_classE/
+    lq_path: test_18/HM16.5_LDP/QP37_classE/
+    #meta_info_fp: meta_info.txt
+    #enlarge_ratio: 1
+    #use_flip: False
+    #use_rot: False
+    #random_reverse: False
+
+  test:
+    type: VideoTestMFQEv2Dataset
+    gt_path: test_18/raw_classE/
+    lq_path: test_18/HM16.5_LDP/QP37_classE/
+
+network:
+  radius: 3  # total num of input frame = 2 * radius + 1
+
+  stdf:
+    in_nc: 1  # 1 for Y
+    out_nc: 48 #64
+    nf: 48  # num of feature maps
+    nb: 3  # num of conv layers
+    base_ks: 3
+    deform_ks: 3  # size of the deformable kernel
+    load_path: exp/MFQEv2_R3_qp37_enlarge300x_adaSwinGelu_HDRO/ckp_300000.pt
+
+  swin:
+    #    load_path: exp/QP22_pre380000/ckp_160000.pt
+    patch_size: 4
+    in_chans: 48 #64
+    out_chans: 7
+    embed_dim: 48 #64
+#    depths: [ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2 ]
+#    num_heads: [ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2 ,2 ,2 ,2 ,2 ,2 ,2 ]
+#    depths: [ 4, 4, 4, 4]
+#    num_heads: [ 2, 2, 2, 2]
+#    depths: [ 2, 2, 2, 2, 2, 2, 2, 2 ]
+#    num_heads: [ 2, 2, 2, 2, 2, 2, 2, 2 ]
+    depths: [ 4, 4, 4, 4, 4, 4, 4, 4, 4, 4]
+    num_heads: [ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
+    window_size: 8
+    mlp_ratio: 1.
+    qkv_bias: False
+    qk_scale: 2
+  
+  qenet:
+    in_nc: 48 # 64  # = out_nc of stdf
+    out_nc: 1  # 1 for Y
+    nf: 48
+    nb: 8
+    base_ks: 3
+    num_blocks: 3
+    #block_layer: 3
+    #num_heads: [ 2, 2, 2, 2, 2]  # [ 1, 1, 1, 1, 1, 1, 1, 1]
+
+train:
+  exp_name: QP69 #MFQEv2_R3_QP37_enlarge300x_ablation_qeConv45 # MFQEv2_R3_qp32_enlarge300x_cl5 # default: timestr. None: ~
+  # exp_name: MFQEv2_R3_qp32_enlarge300x_cl  # default: timestr. None: ~
+  random_seed: 7
+  pre-val: True  # evaluate criterion before training, e.g., ori PSNR
+  num_iter: !!float 3e+5
+  interval_print: !!float 100
+  interval_val: !!float 5e+3  # also save model
+  pbar_len: 100
+  interval_start: !!float 2e+5
+
+
+  optim:
+    type: Adam
+    lr: !!float 1e-4  # init lr of scheduler
+    betas: [0.9, 0.999]
+    eps: !!float 1e-08
+
+  scheduler:
+    is_on: False
+    type: CosineAnnealingRestartLR
+    periods: [!!float 5e+4, !!float 5e+4, !!float 5e+4, !!float 5e+4, !!float 5e+4, !!float 5e+4]  # epoch interval
+    restart_weights: [1, 0.5, 0.5, 0.5, 0.5, 0.5]
+    eta_min: !!float 1e-7
+
+  loss:
+    type: CharbonnierLoss
+    eps: !!float 1e-6
+
+  criterion:
+    type: PSNR
+    unit: dB
+
+train_cl:
+  exp_name: MFQEv2_CL7_enlarge300x_tiny  # MFQEv2_CL_enlarge300x
+  random_seed: 7
+  num_iter: !!float 2e+6
+  interval_print: !!float 100
+  pbar_len: 100
+  interval_val: !!float 5e+4
+
+
+
+test:
+  restore_iter: 300000 #stdfr3_QP32
+  pbar_len: 100
+  qp: [22, 27, 32, 37, 42]
+
+  criterion:
+    type: PSNR
+    unit: dB
+
+test_cl:
+  restore_iter: 3000000 #stdfr3_QP32
+  pbar_len: 100
